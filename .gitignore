@@ -67,3 +67,8 @@ __recovery/
 
 # Boss dependency manager vendor folder https://github.com/HashLoad/boss
 modules/
+samples/basic_usage/comodoro_basic.res
+**/Win32/
+**/Win64/
+
+*.delphilsp.json
