@@ -66,19 +66,29 @@ end;
 
 procedure TAvailableParameters.Show;
 begin
-  CalculateMaxName();
-  writeln('');
-  writeln('Available Flags:');
-  writeln('');
-  for var Param in self do
+  if Count > 0 then
   begin
-    writeln
-    (
-      '  [' + Param.Value.Position.ToString + ']-' + Param.Value.Name +
-      StringOfChar(' ',MaxName - Length(Param.Value.Name)) + '   -   ' +
-      Param.Value.Description
-    );
+    CalculateMaxName();
+    writeln('');
+    writeln('Available Flags:');
+    writeln('');
+    for var Param in self do
+    begin
+      writeln
+      (
+        '  [' + Param.Value.Position.ToString + ']-' + Param.Value.Name +
+        StringOfChar(' ',MaxName - Length(Param.Value.Name)) + '   -   ' +
+        Param.Value.Description
+      );
+    end;
+  end
+  else
+  begin
+    writeln('');
+    writeln('No Parameters are available.');
+    writeln('');
   end;
+
 end;
 
 end.

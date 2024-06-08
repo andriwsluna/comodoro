@@ -21,7 +21,7 @@ Type
     constructor Create(AName, ADescription: string);
     destructor Destroy; override;
   public
-    procedure Run(Args : string); Override;
+    function Run(Args : string) : Boolean; Override;
     function AddCommand(ACommand : TCommand) : TCLIApplication;
   end;
 
@@ -40,6 +40,9 @@ begin
   inherited;
   FCommands := TObjectDictionary<string, TCommand>.Create();
   AddAvailableFlag('--version','Show the CLI Tool Version','-v');
+  AddAvailableFlag('--debug','Show debug logs');
+  AddAvailableFlag('--pause','Wait for any key pressed to exit application');
+  AddAvailableParamater('command', 'The command to execute');
 end;
 
 destructor TCLIApplication.Destroy;
@@ -53,11 +56,13 @@ begin
   Result := inherited and HasNoValidArgs;
 end;
 
-procedure TCLIApplication.Run(Args : string);
+function TCLIApplication.Run(Args : string): Boolean;
 begin
   inherited;
 
-  if HasFlag('--debug','--verbose') then
+  if
+  HasFlag('--debug')
+  then
   begin
     ShowParameters();
     ShowFlags();
@@ -66,15 +71,18 @@ begin
   RunCommand();
 
 
-  {$IFDEF  DEBUG}
+  if HasFlag('--pause') then
+  begin
     writeln('');
     writeln('Press any key to exit');
     var c : char;
     Readln(c);
     writeln(c);
-  {$ENDIF}
+  end;
 
   Self.Free;
+
+  Result := True;
 end;
 
 procedure TCLIApplication.RunCommand;
@@ -89,13 +97,14 @@ begin
   var Command : TCommand;
   if Commands.TryGetValue(Parameters.Items[0], Command) then
   begin
-    Parameters.Remove(Parameters.Items[0]);
-    Command.Prepare(Parameters,SingleFlags, Flags);
-    if Command.CanExecute then
+    if Command.Run(ReceivedArgs.Replace(Parameters.Items[0],'')) then
     begin
       Command.Execute();
     end;
-
+  end
+  else
+  begin
+    writeln('The command ' + Parameters.Items[0] + ' is not available');
   end;
 
 end;

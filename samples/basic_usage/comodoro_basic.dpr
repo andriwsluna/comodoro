@@ -19,14 +19,12 @@ begin
     )
     .AddCommand(TGreetingsFlaggedCommand.Create())
     .AddCommand(TGreetingsCommand.Create())
-    {$WARN SYMBOL_PLATFORM OFF}
+    .AddCommand(TMakeURLCommand.Create())
     {$IFDEF MSWINDOWS}
     .Run(CmdLine);
-    {$ENDIF}
-    {$IF defined(LINUX) or defined(MACOS) or defined(ANDROID)}
+    {$ELSE IF defined(LINUX) or defined(MACOS) or defined(ANDROID)}
     .Run(ArgValues);
     {$ENDIF}
-    {$WARN SYMBOL_PLATFORM ON}
   except
     on E: Exception do
       Writeln(E.ClassName, ': ', E.Message);

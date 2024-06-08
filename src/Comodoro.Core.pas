@@ -19,16 +19,25 @@ Type
     FFlags : TDictionary<string, string>;
     FSingleFlags :  TList<string>;
     FAvailableFlags : TAvailableFlags;
+    FAvailableShortFlags : TAvailableFlags;
     FAvailableParameters: TAvailableParameters;
+
   protected
+    ReceivedArgs : string;
     property Parameters : TList<string> read FParameters;
     property Flags : TDictionary<string, string> read FFlags;
     property SingleFlags : TList<string> read FSingleFlags;
     property AvailableFlags : TAvailableFlags  read FAvailableFlags;
     property AvailableParameters: TAvailableParameters read FAvailableParameters;
 
+    function TryGetFlag(Const CompleteFlagName : string; var Value : string ; IsMandatory : Boolean = False) : Boolean;
+    function TryGetParam(Const Name : string; var Value : string ; IsMandatory : Boolean = False) : Boolean;
+    function HasFlag(const CompleteFlagName : string): Boolean;
+
 
     procedure ResolveArgs(Args : string);
+    function  IsValidFlag(FlagName : String) : boolean;
+    function  IsValidParam(ParamName : String) : boolean;
     procedure ShowFlags();
     procedure ShowParameters();
     procedure ShowAvailableFlags();
@@ -36,7 +45,6 @@ Type
     function AddAvailableFlag(Const Flag, Description : string ; ShortFormat : String = '') : T;
     function AddAvailableParamater(Const Name, Description : string) : T;
 
-    function HasFlag(Const flag : string ; Const otherFormat : String = '') : Boolean;
     function HasNoValidArgs() : Boolean;
     function HelpCondition : Boolean; Virtual;
   public
@@ -47,7 +55,7 @@ Type
     property Name: string read FName write FName;
 
     procedure ShowHelp();
-    procedure Run(Args : string); virtual;
+    function Run(Args : string) : Boolean; virtual;
   end;
 
 implementation
@@ -63,13 +71,43 @@ begin
     FlagRecord.Description := Description;
     FlagRecord.ShortFormat := ShortFormat;
     FAvailableFlags.Add(Flag,FlagRecord);
+    if Not ShortFormat.IsEmpty then
+    begin
+      FAvailableShortFlags.Add(ShortFormat,FlagRecord);
+    end;
+
   end;
 end;
 
 function TBaseClass<T>.HelpCondition: Boolean;
 begin
-  Result :=  HasFlag('--help','-h');
+  Result :=  HasFlag('--help');
 
+end;
+
+function TBaseClass<T>.IsValidFlag(FlagName: String): boolean;
+begin
+  Result := False;
+  if IsFlag(FlagName) then
+  begin
+    var Flag : TFlagRecord;
+    if
+    AvailableFlags.TryGetValue(FlagName,Flag) or
+    FAvailableShortFlags.TryGetValue(FlagName,Flag)
+    then
+    begin
+      Result := True;
+    end;
+  end;
+end;
+
+function TBaseClass<T>.IsValidParam(ParamName: String): boolean;
+begin
+  Result := False;
+  if IsValue(ParamName) then
+  begin
+    Result := FParameters.Count < FAvailableParameters.Count;
+  end;
 end;
 
 function TBaseClass<T>.AddAvailableParamater(const Name,
@@ -95,32 +133,13 @@ begin
   FSingleFlags :=  TList<string>.Create();
   FAvailableFlags := TAvailableFlags.Create();
   FAvailableParameters := TAvailableParameters.Create();
-
+  FAvailableShortFlags := TAvailableFlags.Create;
   Self.AddAvailableFlag('--help','Show help to list available args and flags','-h');
 end;
 
 destructor TBaseClass<T>.Destroy;
 begin
   inherited Destroy;
-end;
-
-function TBaseClass<T>.HasFlag(const flag, otherFormat: String): Boolean;
-begin
-
-
-  Result :=
-    (Not HasNoValidArgs) and
-    (
-      FFlags.ContainsKey(flag) or
-      FSingleFlags.Contains(flag) or
-      (
-        Not otherFormat.IsEmpty and
-        (
-          FFlags.ContainsKey(otherFormat) or
-          FSingleFlags.Contains(otherFormat)
-        )
-      )
-    );
 end;
 
 function TBaseClass<T>.HasNoValidArgs: Boolean;
@@ -142,7 +161,7 @@ begin
   var List := TStringList.Create(TDuplicates.dupAccept, false,false);
   List.Delimiter := ' ';
   List.StrictDelimiter := true;
-  List.DelimitedText := Args.Replace('"' + ParamStr(0) + '" ','');
+  List.DelimitedText := Args;
   if List.Count = 0 then
   begin
     exit;
@@ -150,7 +169,7 @@ begin
   var index := 0;
   repeat
     var Arg := List[index];
-    if IsFlag(Arg) then
+    if IsValidFlag(Arg) then
     begin
       if index < List.Count-1 then
       begin
@@ -171,7 +190,7 @@ begin
       end;
     end
     else
-    if IsValue(Arg) then
+    if IsValidParam(Arg) then
     begin
        FParameters.Add(Arg);
     end;
@@ -181,12 +200,18 @@ begin
 
 end;
 
-procedure TBaseClass<T>.Run(Args : string);
+function TBaseClass<T>.Run(Args : string): Boolean;
 begin
-  ResolveArgs(Args);
+  ReceivedArgs := Args.Replace('"' + ParamStr(0) + '" ','');;
+  ResolveArgs(ReceivedArgs);
   if HelpCondition then
   begin
     ShowHelp();
+    result := False;
+  end
+  else
+  begin
+    result := True;
   end;
 end;
 
@@ -220,5 +245,100 @@ begin
     writeln('P[' + i.ToString + '] = ' + FParameters[i]);
   end;
 end;
+
+
+function TBaseClass<T>.HasFlag(const CompleteFlagName : string): Boolean;
+begin
+  var Flag : TFlagRecord;
+
+  if AvailableFlags.TryGetValue(CompleteFlagName,Flag) then
+  begin
+    var Vl : String;
+    if
+      SingleFlags.Contains(CompleteFlagName) or
+      SingleFlags.Contains(Flag.ShortFormat)
+    then
+    begin
+      Result := true;
+    end
+    else
+    begin
+      Result := False;
+    end
+
+  end
+  else
+  begin
+    raise Exception.Create('Internal Error : Flag ' + CompleteFlagName + ' is not available');
+  end;
+end;
+
+function TBaseClass<T>.TryGetFlag(Const CompleteFlagName : string; var Value :
+    string ; IsMandatory : Boolean = False): Boolean;
+begin
+  var Flag : TFlagRecord;
+
+  if AvailableFlags.TryGetValue(CompleteFlagName,Flag) then
+  begin
+    var Vl : String;
+    if
+      Flags.TryGetValue(Flag.CompleteName, Vl) or
+      Flags.TryGetValue(Flag.ShortFormat, Vl)
+    then
+    begin
+      Value := Vl;
+      Result := true;
+    end
+    else if IsMandatory then
+    begin
+      Writeln('The flag "' + CompleteFlagName + '" is mandatory');
+      Result := False;
+      System.Halt(1);
+    end
+    Else
+    begin
+      Value := '';
+      Result := False;
+    end
+
+  end
+  else
+  begin
+    raise Exception.Create('Internal Error : Flag ' + CompleteFlagName + ' is not available');
+  end;
+end;
+
+function TBaseClass<T>.TryGetParam(const Name: string; var Value: string;
+  IsMandatory: Boolean): Boolean;
+begin
+  var Param : TParameterRecord;
+
+  if AvailableParameters.TryGetValue(Name,Param) then
+  begin
+    if Parameters.Count  >= Param.Position then
+    begin
+        Value := Parameters[Param.Position-1];
+        Result := true;
+    end
+    else if IsMandatory then
+    begin
+      Writeln('The paramter "' + Name + '" ['+param.Position.ToString+'] is mandatory');
+      Result := False;
+      System.Halt(1);
+    end
+    Else
+    begin
+      Value := '';
+      Result := False;
+    end;
+
+
+  end
+  else
+  begin
+    raise Exception.Create('Internal Error : Paramter ' + Name + ' is not available');
+  end;
+end;
+
 
 end.

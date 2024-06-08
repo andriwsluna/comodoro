@@ -52,19 +52,29 @@ end;
 
 procedure TAvailableFlags.Show;
 begin
-  CalculateMaxFlagName();
-  writeln('');
-  writeln('Available Flags:');
-  writeln('');
-  for var Flag in self do
+  if Count > 0 then
   begin
-    writeln
-    (
-      '  ' + Flag.Value.FullName + 
-      StringOfChar(' ',MaxFlagName - Length(Flag.Value.FullName)) + '   -   ' + 
-      Flag.Value.Description
-    );
+    CalculateMaxFlagName();
+    writeln('');
+    writeln('Available Flags:');
+    writeln('');
+    for var Flag in self do
+    begin
+      writeln
+      (
+        '  ' + Flag.Value.FullName +
+        StringOfChar(' ',MaxFlagName - Length(Flag.Value.FullName)) + '   -   ' +
+        Flag.Value.Description
+      );
+    end;
+  end
+  else
+  begin
+    writeln('');
+    writeln('No Flags are available:');
+    writeln('');
   end;
+
 end;
 
 function TFlagRecord.GetFullName: string;
