@@ -84,7 +84,7 @@
         <VerInfo_Locale>1033</VerInfo_Locale>
         <Manifest_File>(None)</Manifest_File>
         <AppDPIAwarenessMode>none</AppDPIAwarenessMode>
-        <Debugger_RunParams>1 2 3 4 -f x -g --force-update project_path --debug</Debugger_RunParams>
+        <Debugger_RunParams>greetings -h</Debugger_RunParams>
     </PropertyGroup>
     <PropertyGroup Condition="'$(Cfg_2)'!=''">
         <DCC_LocalDebugSymbols>false</DCC_LocalDebugSymbols>
@@ -97,8 +97,8 @@
             <MainSource>MainSource</MainSource>
         </DelphiCompile>
         <DCCReference Include="..\..\src\Comodoro.pas"/>
-        <DCCReference Include="..\..\src\Comodoro.Core.pas"/>
-        <DCCReference Include="..\..\src\Comodoro.Utils.pas"/>
+        <DCCReference Include="Comodoro.Samples.Basic.Commands.pas"/>
+        <DCCReference Include="..\..\src\Comodoro.Core.Parameters.pas"/>
         <BuildConfiguration Include="Base">
             <Key>Base</Key>
         </BuildConfiguration>

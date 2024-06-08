@@ -9,12 +9,14 @@ uses
 
 
 Type
-  TCLIApplication = class(TBaseClass)
+  TCLIApplication = class(TBaseClass<TCLIApplication>)
   private
-    FCommands: TObjectList<TCommand>;
-
+    FCommands: TObjectDictionary<string, TCommand>;
+  protected
+    function HelpCondition : Boolean; Override;
   public
-    property Commands: TObjectList<TCommand> read FCommands write FCommands;
+    property Commands: TObjectDictionary<string, TCommand> read FCommands write FCommands;
+    procedure RunCommand();
   public
     constructor Create(AName, ADescription: string);
     destructor Destroy; override;
@@ -29,14 +31,15 @@ implementation
 
 function TCLIApplication.AddCommand(ACommand: TCommand): TCLIApplication;
 begin
-  Commands.Add(ACommand);
+  Commands.Add(ACommand.Name,ACommand);
   Result := Self;
 end;
 
 constructor TCLIApplication.Create(AName, ADescription: string);
 begin
   inherited;
-  FCommands := TObjectList<TCommand>.Create();
+  FCommands := TObjectDictionary<string, TCommand>.Create();
+  AddAvailableFlag('--version','Show the CLI Tool Version','-v');
 end;
 
 destructor TCLIApplication.Destroy;
@@ -45,7 +48,12 @@ begin
   inherited Destroy;
 end;
 
-procedure TCLIApplication.Run;
+function TCLIApplication.HelpCondition: Boolean;
+begin
+  Result := inherited and HasNoValidArgs;
+end;
+
+procedure TCLIApplication.Run(Args : string);
 begin
   inherited;
 
@@ -55,14 +63,41 @@ begin
     ShowFlags();
   end;
 
+  RunCommand();
+
 
   {$IFDEF  DEBUG}
+    writeln('');
+    writeln('Press any key to exit');
     var c : char;
     Readln(c);
     writeln(c);
   {$ENDIF}
 
   Self.Free;
+end;
+
+procedure TCLIApplication.RunCommand;
+begin
+
+  if Parameters.Count = 0 then
+  begin
+    ShowHelp();
+    Exit;
+  end;
+
+  var Command : TCommand;
+  if Commands.TryGetValue(Parameters.Items[0], Command) then
+  begin
+    Parameters.Remove(Parameters.Items[0]);
+    Command.Prepare(Parameters,SingleFlags, Flags);
+    if Command.CanExecute then
+    begin
+      Command.Execute();
+    end;
+
+  end;
+
 end;
 
 end.
