@@ -16,17 +16,18 @@ Type
     FDescription: string;
     FName: string;
     FParameters :  TList<string>;
-    FFlags : TDictionary<string, string>;
-    FSingleFlags :  TList<string>;
+    FNamedParameters : TDictionary<string, string>;
+    FFlags :  TList<string>;
     FAvailableFlags : TAvailableFlags;
     FAvailableShortFlags : TAvailableFlags;
     FAvailableParameters: TAvailableParameters;
+    FAvailableNamedParameters: TAvailableNamedParameters;
 
   protected
     ReceivedArgs : string;
     property Parameters : TList<string> read FParameters;
-    property Flags : TDictionary<string, string> read FFlags;
-    property SingleFlags : TList<string> read FSingleFlags;
+    property NamedParamenters : TDictionary<string, string> read FNamedParameters;
+    property Flags : TList<string> read FFlags;
     property AvailableFlags : TAvailableFlags  read FAvailableFlags;
     property AvailableParameters: TAvailableParameters read FAvailableParameters;
 
@@ -36,13 +37,15 @@ Type
 
 
     procedure ResolveArgs(Args : string);
-    function  IsValidFlag(FlagName : String) : boolean;
+    function IsValidFlag(FlagName: String): boolean;
     function  IsValidParam(ParamName : String) : boolean;
+    function IsValidNamedParamter(ParamName : String) : Boolean;
     procedure ShowFlags();
     procedure ShowParameters();
     procedure ShowAvailableFlags();
     procedure ShowAvailableParameters();
     function AddAvailableFlag(Const Flag, Description : string ; ShortFormat : String = '') : T;
+    function AddAvailableNamedParameter(Const Name, Description : string ; ShortFormat : String = '') : T;
     function AddAvailableParamater(Const Name, Description : string) : T;
 
     function HasNoValidArgs() : Boolean;
@@ -54,7 +57,7 @@ Type
     property Description: string read FDescription write FDescription;
     property Name: string read FName write FName;
 
-    procedure ShowHelp();
+    procedure ShowHelp(); Virtual;
     function Run(Args : string) : Boolean; virtual;
   end;
 
@@ -82,7 +85,6 @@ end;
 function TBaseClass<T>.HelpCondition: Boolean;
 begin
   Result :=  HasFlag('--help');
-
 end;
 
 function TBaseClass<T>.IsValidFlag(FlagName: String): boolean;
@@ -91,14 +93,20 @@ begin
   if IsFlag(FlagName) then
   begin
     var Flag : TFlagRecord;
-    if
-    AvailableFlags.TryGetValue(FlagName,Flag) or
-    FAvailableShortFlags.TryGetValue(FlagName,Flag)
-    then
+    if AvailableFlags.TryGetValue(FlagName,Flag) then
+    begin
+      Result := True;
+    end
+    else if FAvailableShortFlags.TryGetValue(FlagName,Flag) then
     begin
       Result := True;
     end;
   end;
+end;
+
+function TBaseClass<T>.IsValidNamedParamter(ParamName: String): Boolean;
+begin
+  Result := FAvailableNamedParameters.ContainsKey(ParamName);
 end;
 
 function TBaseClass<T>.IsValidParam(ParamName: String): boolean;
@@ -107,6 +115,20 @@ begin
   if IsValue(ParamName) then
   begin
     Result := FParameters.Count < FAvailableParameters.Count;
+  end;
+end;
+
+function TBaseClass<T>.AddAvailableNamedParameter(const Name,
+  Description: string; ShortFormat: String): T;
+begin
+  if (Not Name.IsEmpty) and IsFlag(Name) then
+  begin
+    var  ParamRecord : TParameterRecord;
+    ParamRecord.Name := Name;
+    ParamRecord.Description := Description;
+    ParamRecord.Position := FAvailableNamedParameters.Count+1;
+    ParamRecord.ShortName := ShortFormat;
+    FAvailableNamedParameters.Add(Name,ParamRecord);
   end;
 end;
 
@@ -129,11 +151,12 @@ begin
   Name := AName;
   Description := ADescription;
   FParameters := TList<string>.Create;
-  FFlags := TDictionary<string, string>.Create;
-  FSingleFlags :=  TList<string>.Create();
+  FNamedParameters := TDictionary<string, string>.Create;
+  FFlags :=  TList<string>.Create();
   FAvailableFlags := TAvailableFlags.Create();
   FAvailableParameters := TAvailableParameters.Create();
   FAvailableShortFlags := TAvailableFlags.Create;
+  FAvailableNamedParameters := TAvailableNamedParameters.Create();
   Self.AddAvailableFlag('--help','Show help to list available args and flags','-h');
 end;
 
@@ -144,14 +167,14 @@ end;
 
 function TBaseClass<T>.HasNoValidArgs: Boolean;
 begin
-  Result := (FParameters.Count = 0) and (FFlags.Count = 0) And (FSingleFlags.Count = 0);
+  Result := (FParameters.Count = 0) and (FNamedParameters.Count = 0) And (FFlags.Count = 0);
 end;
 
 procedure TBaseClass<T>.ShowHelp;
 begin
   Writeln(Name + ' - ' + Description);
-  ShowAvailableFlags();
   ShowAvailableParameters();
+  ShowAvailableFlags();
 end;
 
 
@@ -171,25 +194,21 @@ begin
     var Arg := List[index];
     if IsValidFlag(Arg) then
     begin
-      if index < List.Count-1 then
+      FFlags.Add(Arg);
+    end
+    else
+    if IsValidNamedParamter(Arg) then
+    begin
+      if (index < List.Count-1) then
       begin
         var Value := List[index+1];
         if IsValue(Value) then
         begin
-          FFlags.Add(Arg,value);
+          FNamedParameters.Add(Arg,value);
           Inc(index);
-        end
-        else
-        begin
-           FSingleFlags.Add(Arg);
         end;
-      end
-      else
-      begin
-        FSingleFlags.Add(Arg);
       end;
-    end
-    else
+    end;
     if IsValidParam(Arg) then
     begin
        FParameters.Add(Arg);
@@ -202,7 +221,7 @@ end;
 
 function TBaseClass<T>.Run(Args : string): Boolean;
 begin
-  ReceivedArgs := Args.Replace('"' + ParamStr(0) + '" ','');;
+  ReceivedArgs := TRIM(Args.Replace('"' + ParamStr(0) + '"',''));
   ResolveArgs(ReceivedArgs);
   if HelpCondition then
   begin
@@ -223,16 +242,17 @@ end;
 procedure TBaseClass<T>.ShowAvailableParameters;
 begin
   AvailableParameters.Show();
+  FAvailableNamedParameters.Show();
 end;
 
 procedure TBaseClass<T>.ShowFlags;
 begin
-  for var flag in FFlags do
+  for var flag in FNamedParameters do
   begin
     writeln('Flag ' + Flag.Key + ' = ' + Flag.Value);
   end;
 
-  for var flag in FSingleFlags do
+  for var flag in FFlags do
   begin
     writeln('Flag ' + flag);
   end;
@@ -255,8 +275,8 @@ begin
   begin
     var Vl : String;
     if
-      SingleFlags.Contains(CompleteFlagName) or
-      SingleFlags.Contains(Flag.ShortFormat)
+      Flags.Contains(CompleteFlagName) or
+      Flags.Contains(Flag.ShortFormat)
     then
     begin
       Result := true;
@@ -282,8 +302,8 @@ begin
   begin
     var Vl : String;
     if
-      Flags.TryGetValue(Flag.CompleteName, Vl) or
-      Flags.TryGetValue(Flag.ShortFormat, Vl)
+      FNamedParameters.TryGetValue(Flag.CompleteName, Vl) or
+      FNamedParameters.TryGetValue(Flag.ShortFormat, Vl)
     then
     begin
       Value := Vl;
@@ -291,7 +311,7 @@ begin
     end
     else if IsMandatory then
     begin
-      Writeln('The flag "' + CompleteFlagName + '" is mandatory');
+      Writeln('The named parameter "' + CompleteFlagName + '" is mandatory');
       Result := False;
       System.Halt(1);
     end
